@@ -26,56 +26,78 @@ namespace CountFromStackoverflow
 
             for (int i = 1; i < pages; i++)
             {
-                IHtmlDocument document = await GetDocument($"{rootUrl}{filter}&pg={i}");
+                await ProcessPageAsync(i).ConfigureAwait(false);
+            }
 
-                var element = document.All
-                    .Where(x => x?.ClassName != null 
-                    && x.ClassName.Contains("js-search-results flush-left")).ToList();
+            OutputFile();
 
-                if (element.Any())
+        }
+
+        private static async Task ProcessPageAsync(int i)
+        {
+            IHtmlDocument document = await GetDocument($"{rootUrl}{filter}&pg={i}");
+
+            var element = document.All
+                .Where(x => x?.ClassName != null
+                && x.ClassName.Contains("js-search-results flush-left")).ToList();
+
+            if (element.Any())
+            {
+                var child = element[0].LastElementChild;
+
+                foreach (var e in child.Children)
                 {
-                    var child = element[0].LastElementChild;
+                    var location = e.QuerySelector("span.fc-black-500");
 
-                    foreach (var e in child.Children)
+                    if (location != null)
                     {
-                        var location = e.QuerySelector("span.fc-black-500");
+                        string locationKey = GetCountryKey(location);
 
-                        if (location != null)
-                        {
-                            var locationKey = location.InnerHtml.Trim();
-                            var cityCountry = locationKey.Split(',');     
+                        var skillTagDict = locationSkill[locationKey];
 
-                            if (cityCountry.Length > 1)
-                            {
-                                locationKey = Translator(cityCountry);
-                            }
-
-                            if (!locationSkill.ContainsKey(locationKey))
-                            {
-                                locationSkill.Add(locationKey, new Dictionary<string, int>());
-                            }
-
-                            var skillTagDict = locationSkill[locationKey];
-
-                            var skillTags = e.QuerySelectorAll("a.post-tag.job-link.no-tag-menu");
-
-                            foreach (var st in skillTags)
-                            {
-                                if (!skillTagDict.ContainsKey(st.InnerHtml))
-                                {
-                                    skillTagDict.Add(st.InnerHtml, 1);
-                                }
-                                else
-                                {
-                                    skillTagDict[st.InnerHtml]++;
-                                }
-                            }
-
-                        }
+                        CountSkills(e, skillTagDict);
                     }
                 }
             }
-                        
+        }
+
+        private static void CountSkills(IElement e, Dictionary<string, int> skillTagDict)
+        {
+            var skillTags = e.QuerySelectorAll("a.post-tag.job-link.no-tag-menu");
+
+            foreach (var st in skillTags)
+            {
+                if (!skillTagDict.ContainsKey(st.InnerHtml))
+                {
+                    skillTagDict.Add(st.InnerHtml, 1);
+                }
+                else
+                {
+                    skillTagDict[st.InnerHtml]++;
+                }
+            }
+        }
+
+        private static string GetCountryKey(IElement location)
+        {
+            var locationKey = location.InnerHtml.Trim();
+            var cityCountry = locationKey.Split(',');
+
+            if (cityCountry.Length > 1)
+            {
+                locationKey = Translator(cityCountry);
+            }
+
+            if (!locationSkill.ContainsKey(locationKey))
+            {
+                locationSkill.Add(locationKey, new Dictionary<string, int>());
+            }
+
+            return locationKey;
+        }
+
+        private static void OutputFile()
+        {
             using (StreamWriter sw = File.CreateText(fileName))
             {
                 var locations = locationSkill.Keys.ToList();
