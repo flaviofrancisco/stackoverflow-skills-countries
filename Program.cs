@@ -16,9 +16,12 @@ namespace CountFromStackoverflow
 
         private const string rootUrl = @"https://stackoverflow.com/";
         private const string filter = @"jobs?sort=i";
-        private const string fileName = @"G:\temp\stackoverflow-all.txt";
+        private const string skillsPerCountries = @"c:\temp\stackoverflow-contries.txt";
+        private const string globalSkills = @"c:\temp\stackoverflow-all.txt";
 
         private static Dictionary<string, Dictionary<string, int>> locationSkill = new Dictionary<string, Dictionary<string, int>>();
+
+        private static Dictionary<string, int> skills = new Dictionary<string, int>();
 
         static async Task Main(string[] args)
         {
@@ -29,8 +32,8 @@ namespace CountFromStackoverflow
                 await ProcessPageAsync(i).ConfigureAwait(false);
             }
 
-            OutputFile();
-
+            OutputSkillsPerCountriesFile();
+            OutputSkillsFile();
         }
 
         private static async Task ProcessPageAsync(int i)
@@ -65,15 +68,21 @@ namespace CountFromStackoverflow
         {
             var skillTags = e.QuerySelectorAll("a.post-tag.job-link.no-tag-menu");
 
+            SkillsAccumulator(skillTagDict, skillTags);
+            SkillsAccumulator(skills, skillTags);
+        }
+
+        private static void SkillsAccumulator(Dictionary<string, int> dictonary, IHtmlCollection<IElement> skillTags)
+        {
             foreach (var st in skillTags)
             {
-                if (!skillTagDict.ContainsKey(st.InnerHtml))
+                if (!dictonary.ContainsKey(st.InnerHtml))
                 {
-                    skillTagDict.Add(st.InnerHtml, 1);
+                    dictonary.Add(st.InnerHtml, 1);
                 }
                 else
                 {
-                    skillTagDict[st.InnerHtml]++;
+                    dictonary[st.InnerHtml]++;
                 }
             }
         }
@@ -96,9 +105,20 @@ namespace CountFromStackoverflow
             return locationKey;
         }
 
-        private static void OutputFile()
+        private static void OutputSkillsFile()
         {
-            using (StreamWriter sw = File.CreateText(fileName))
+            using (StreamWriter sw = File.CreateText(globalSkills))
+            {
+                foreach (KeyValuePair<string, int> skill in skills.OrderByDescending(key => key.Value))
+                {
+                    sw.WriteLine($"{skill.Key} - {skill.Value}");
+                }
+            }
+        }
+
+        private static void OutputSkillsPerCountriesFile()
+        {
+            using (StreamWriter sw = File.CreateText(skillsPerCountries))
             {
                 var locations = locationSkill.Keys.ToList();
                 locations.Sort();
